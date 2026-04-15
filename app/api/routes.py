@@ -9,5 +9,5 @@ router = APIRouter()
 
 @router.get("/market-summary")
 def get_market_summary() -> MarketSummaryResponseModel:
-    decision_output = run_market_pipeline()
+    decision_output = run_market_pipeline(use_ai=False)
     return MarketSummaryResponseModel(**decision_output)

@@ -13,7 +13,7 @@ from app.engines.signal_engine import generate_signals
 logger = logging.getLogger(__name__)
 
 
-def run_market_pipeline() -> dict:
+def run_market_pipeline(use_ai: bool = False) -> dict:
     logger.info("Step 1: fetch market data")
     try:
         market_data = fetch_market_data()
@@ -70,19 +70,9 @@ def run_market_pipeline() -> dict:
             "data_completeness": "low",
         }
 
-    logger.info("Step 7: generate reasoning")
+    logger.info("Step 7: generate decision")
     try:
-        reasoning = generate_reasoning(context)
-    except Exception as error:
-        logger.exception("Reasoning generation failed: %s", error)
-        reasoning = {
-            "reasoning": "Reasoning agent unavailable; returning rule-based fallback.",
-            "recommendation": "Use caution until reasoning service recovers.",
-        }
-
-    logger.info("Step 8: generate decision")
-    try:
-        decision = generate_decision(signals, context, reasoning)
+        decision = generate_decision(signals, context)
     except Exception as error:
         logger.exception("Decision engine failed: %s", error)
         decision = {
@@ -90,10 +80,23 @@ def run_market_pipeline() -> dict:
             "confidence": 0.0,
             "signals": signals,
             "dominant_factors": context.get("dominant_factors", []),
-            "reasoning": str(reasoning.get("reasoning") or ""),
+            "reasoning": "",
             "risk_level": "high",
             "warnings": ["Decision engine failure; fallback output used."],
         }
+
+    if use_ai:
+        logger.info("Step 8: generate AI reasoning")
+        try:
+            reasoning = generate_reasoning(context)
+            decision["reasoning"] = str(reasoning.get("reasoning") or "")
+        except Exception as error:
+            logger.exception("Reasoning generation failed: %s", error)
+            decision["reasoning"] = "AI reasoning unavailable; deterministic output used."
+            decision.setdefault("warnings", []).append("AI reasoning unavailable")
+    else:
+        logger.info("Step 8: skip AI reasoning")
+        decision["reasoning"] = "AI reasoning disabled; deterministic output only."
 
     logger.info("Step 9: pipeline complete")
     return decision

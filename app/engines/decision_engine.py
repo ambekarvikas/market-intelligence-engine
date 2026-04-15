@@ -2,11 +2,13 @@ def _clamp(value: float, minimum: float, maximum: float) -> float:
     return max(minimum, min(maximum, value))
 
 
-def _resolve_confidence(market_sentiment: str, conflict_detected: bool) -> float:
+def _resolve_confidence(signals: dict, market_sentiment: str, conflict_detected: bool) -> float:
+    signals = signals or {}
     base_score = 0.8
     penalty_if_no_news = 0.4 if market_sentiment == "incomplete" else 0.0
     penalty_if_conflict = 0.25 if conflict_detected else 0.0
-    return _clamp(base_score - penalty_if_no_news - penalty_if_conflict, 0.0, 1.0)
+    penalty_if_weak_signal = 0.15 if str(signals.get("trend") or "neutral") == "neutral" else 0.0
+    return _clamp(base_score - penalty_if_no_news - penalty_if_conflict - penalty_if_weak_signal, 0.0, 1.0)
 
 
 def _resolve_risk_level(market_sentiment: str, conflict_detected: bool) -> str:
@@ -26,7 +28,7 @@ def _resolve_market_outlook(market_sentiment: str) -> str:
 def _build_warnings(market_sentiment: str, conflict_detected: bool, data_completeness: str) -> list[str]:
     warnings = []
     if market_sentiment == "incomplete":
-        warnings.append("News data unavailable; context is incomplete.")
+        warnings.append("No news data available")
     if conflict_detected:
         warnings.append("Conflicting market and news signals detected.")
     if data_completeness == "low" and market_sentiment != "incomplete":
@@ -34,7 +36,7 @@ def _build_warnings(market_sentiment: str, conflict_detected: bool, data_complet
     return warnings
 
 
-def generate_decision(signals: dict, context: dict, reasoning: dict) -> dict:
+def generate_decision(signals: dict, context: dict, reasoning: dict | None = None) -> dict:
     signals = signals or {}
     context = context or {}
     reasoning = reasoning or {}
@@ -42,7 +44,7 @@ def generate_decision(signals: dict, context: dict, reasoning: dict) -> dict:
     market_sentiment = str(context.get("market_sentiment") or "mixed")
     conflict_detected = bool(context.get("conflict_detected", False))
     data_completeness = str(context.get("data_completeness") or "low")
-    confidence = _resolve_confidence(market_sentiment, conflict_detected)
+    confidence = _resolve_confidence(signals, market_sentiment, conflict_detected)
     risk_level = _resolve_risk_level(market_sentiment, conflict_detected)
     market_outlook = _resolve_market_outlook(market_sentiment)
     warnings = _build_warnings(market_sentiment, conflict_detected, data_completeness)
